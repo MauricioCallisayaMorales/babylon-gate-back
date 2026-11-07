@@ -2,6 +2,7 @@
 FROM eclipse-temurin:21-jdk-jammy AS builder
 WORKDIR /app
 COPY . .
+RUN chmod +x mvnw
 RUN ./mvnw package -DskipTests
 
 # Etapa 2: runtime
