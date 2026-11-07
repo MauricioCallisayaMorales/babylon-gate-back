@@ -1,10 +1,8 @@
-# Etapa 1: compilar dentro del contenedor
-FROM eclipse-temurin:21-jdk-jammy AS builder
+# Etapa 1: usar imagen oficial con Maven
+FROM maven:3.9-eclipse-temurin-21 AS builder
 WORKDIR /app
 COPY . .
-RUN chmod +x mvnw
-RUN ./mvnw package -DskipTests
-
+RUN mvn package -DskipTests
 # Etapa 2: runtime
 FROM eclipse-temurin:21-jre-jammy
 WORKDIR /deployments
