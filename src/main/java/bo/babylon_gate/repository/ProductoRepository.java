@@ -1,6 +1,7 @@
 package bo.babylon_gate.repository;
 
 import bo.babylon_gate.dto.*;
+import bo.babylon_gate.utils.ImageUtils;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
@@ -96,6 +97,18 @@ public class ProductoRepository {
                 }
             }
         }
+
+        if (producto.getImagenBase64() != null && !producto.getImagenBase64().isEmpty()) {
+            String miniatura = ImageUtils.procesarYComprimirBase64(producto.getImagenBase64(), 100, 100);
+            String estandar = ImageUtils.procesarYComprimirBase64(producto.getImagenBase64(), 600, 600);
+
+            String sqlImg = "INSERT INTO public.producto_imagenes (id_producto, imagen_miniatura, imagen_estandar) VALUES (:idProd, :mini, :std)";
+            em.createNativeQuery(sqlImg)
+                    .setParameter("idProd", idProd)
+                    .setParameter("mini", miniatura)
+                    .setParameter("std", estandar)
+                    .executeUpdate();
+        }
     }
 
     public List<ProductoLoteDto> listarLotesActivosPorProducto(Long idProducto) {
@@ -184,10 +197,11 @@ public class ProductoRepository {
                     u.nombre as "unidad",
                     p.precio_venta as "precioVenta",
                     p.precio_mayorista as "precioMayorista",
-                    p.stock_actual as "stockActual",
+                    (p.stock_actual - COALESCE(p.stock_reservado, 0)) as "stock_actual",
                     (SELECT pe.codigo_barras FROM producto_empaques pe WHERE pe.id_producto = p.id ORDER BY pe.cantidad_base ASC LIMIT 1) as "idCodBarras",
                     p.api_estado as "apiEstado",
-                    p.api_transaccion as "apiTransaccion"
+                    p.api_transaccion as "apiTransaccion",
+                    (SELECT pi.imagen_miniatura FROM public.producto_imagenes pi WHERE pi.id_producto = p.id) as "imagenMiniatura"
                 FROM
                     productos p
                     LEFT JOIN cat_categorias c ON p.id_categoria = c.id
@@ -213,6 +227,7 @@ public class ProductoRepository {
             dto.setIdCodBarras((String) fila[9]);
             dto.setApiEstado((String) fila[10]);
             dto.setApiTransaccion((String) fila[11]);
+            dto.setImagenMiniatura((String) fila[12]);
             dtos.add(dto);
         }
         return dtos;
@@ -222,12 +237,14 @@ public class ProductoRepository {
         String sql = """
                     SELECT 
                         p.id, p.codigo, p.detalle, c.nombre as "categoria", m.nombre as "marca", u.nombre as "unidad", 
-                        p.precio_venta, p.precio_mayorista, p.stock_actual,
+                        p.precio_venta, p.precio_mayorista,
+                        (p.stock_actual - COALESCE(p.stock_reservado, 0)) as "stock_actual",
                         (SELECT MAX(cd.fec_cre) FROM compras_detalle cd WHERE cd.id_producto = p.id AND cd.api_transaccion = 'CREAR') as "fechaIngreso",
                         (SELECT MIN(cd.fecha_vencimiento) FROM compras_detalle cd WHERE cd.id_producto = p.id AND cd.fecha_vencimiento >= CURRENT_DATE AND cd.api_transaccion = 'CREAR') as "fechaVencimiento",
                         COALESCE(c.vida_util_dias, 365), 
                         COALESCE(c.alerta_amarilla_porc, 70), 
-                        COALESCE(c.alerta_roja_porc, 85)
+                        COALESCE(c.alerta_roja_porc, 85),
+                        (SELECT pi.imagen_miniatura FROM public.producto_imagenes pi WHERE pi.id_producto = p.id) as "imagenMiniatura"
                     FROM productos p
                     LEFT JOIN cat_categorias c ON p.id_categoria = c.id
                     LEFT JOIN cat_marcas m ON p.id_marca = m.id
@@ -254,6 +271,7 @@ public class ProductoRepository {
             dto.setVidaUtilDias(fila[11] != null ? ((Number) fila[11]).intValue() : 365);
             dto.setAlertaAmarillaPorc(fila[12] != null ? ((Number) fila[12]).intValue() : 70);
             dto.setAlertaRojaPorc(fila[13] != null ? ((Number) fila[13]).intValue() : 85);
+            dto.setImagenMiniatura((String) fila[14]);
             dtos.add(dto);
         }
         return dtos;
@@ -456,6 +474,24 @@ public class ProductoRepository {
                         .setParameter("costoReferencial", prov.getCostoReferencial() != null ? prov.getCostoReferencial() : java.math.BigDecimal.ZERO)
                         .setParameter("codigoProveedor", prov.getCodigoProveedor())
                         .setParameter("proveedorPrincipal", prov.getProveedorPrincipal() != null ? prov.getProveedorPrincipal() : false)
+                        .executeUpdate();
+            }
+
+            if (producto.getImagenBase64() != null && !producto.getImagenBase64().isEmpty()) {
+                String miniatura = ImageUtils.procesarYComprimirBase64(producto.getImagenBase64(), 100, 100);
+                String estandar = ImageUtils.procesarYComprimirBase64(producto.getImagenBase64(), 600, 600);
+
+                String sqlImgUpsert = """
+                INSERT INTO public.producto_imagenes (id_producto, imagen_miniatura, imagen_estandar) 
+                VALUES (:idProd, :mini, :std)
+                ON CONFLICT (id_producto) DO UPDATE SET 
+                    imagen_miniatura = EXCLUDED.imagen_miniatura,
+                    imagen_estandar = EXCLUDED.imagen_estandar;
+            """;
+                em.createNativeQuery(sqlImgUpsert)
+                        .setParameter("idProd", producto.getId())
+                        .setParameter("mini", miniatura)
+                        .setParameter("std", estandar)
                         .executeUpdate();
             }
         }
@@ -668,5 +704,14 @@ public class ProductoRepository {
                 .setParameter("idProd", idProducto).setParameter("idLoteO", idLoteOrigen)
                 .setParameter("idAlmO", idAlmacenOrigen).setParameter("idAlmD", idAlmacenDestino)
                 .setParameter("cant", cantidad).executeUpdate();
+    }
+
+    public String obtenerImagenEstandar(Long idProducto) {
+        String sql = "SELECT imagen_estandar FROM public.producto_imagenes WHERE id_producto = :id";
+        try {
+            return (String) em.createNativeQuery(sql).setParameter("id", idProducto).getSingleResult();
+        } catch (NoResultException e) {
+            return null;
+        }
     }
 }

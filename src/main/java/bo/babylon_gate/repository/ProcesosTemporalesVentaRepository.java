@@ -1,7 +1,5 @@
 package bo.babylon_gate.repository;
 
-import bo.babylon_gate.dto.CompraDto;
-import bo.babylon_gate.dto.TempIngresoDetalleDto;
 import bo.babylon_gate.dto.TempVentaDetalleDto;
 import bo.babylon_gate.dto.VentaDto;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -52,6 +50,14 @@ public class ProcesosTemporalesVentaRepository {
                 .setParameter("observacion", dto.getObservacion())
                 .setParameter("idLote", dto.getIdLote())
                 .executeUpdate();
+
+        em.createNativeQuery("UPDATE public.productos SET stock_reservado = COALESCE(stock_reservado, 0) + :cant WHERE id = :idProd")
+                .setParameter("cant", dto.getCantidad()).setParameter("idProd", dto.getIdProducto()).executeUpdate();
+
+        if (dto.getIdLote() != null) {
+            em.createNativeQuery("UPDATE public.producto_lotes SET stock_reservado_lote = COALESCE(stock_reservado_lote, 0) + :cant WHERE id = :idLote")
+                    .setParameter("cant", dto.getCantidad()).setParameter("idLote", dto.getIdLote()).executeUpdate();
+        }
     }
 
     public List<Long> obtenerListadoProcesosActivosVenta() {
@@ -114,16 +120,36 @@ public class ProcesosTemporalesVentaRepository {
 
     @Transactional
     public void cancelarProcesoVenta(Long nroProceso) {
-        em.createNativeQuery("DELETE FROM public.temp_venta_proceso WHERE nro_proceso = :nroProceso")
-                .setParameter("nroProceso", nroProceso)
-                .executeUpdate();
+        // Buscar todos los detalles para liberar reservas
+        List<Object[]> detalles = em.createNativeQuery("SELECT id_producto, cantidad, id_lote FROM public.temp_venta_detalle WHERE id_temp_venta = (SELECT id FROM public.temp_venta_proceso WHERE nro_proceso = :nroProceso)")
+                .setParameter("nroProceso", nroProceso).getResultList();
+
+        for(Object[] det : detalles) {
+            em.createNativeQuery("UPDATE public.productos SET stock_reservado = stock_reservado - :cant WHERE id = :idProd")
+                    .setParameter("cant", ((Number)det[1]).intValue()).setParameter("idProd", ((Number)det[0]).longValue()).executeUpdate();
+            if (det[2] != null) {
+                em.createNativeQuery("UPDATE public.producto_lotes SET stock_reservado_lote = stock_reservado_lote - :cant WHERE id = :idLote")
+                        .setParameter("cant", ((Number)det[1]).intValue()).setParameter("idLote", ((Number)det[2]).longValue()).executeUpdate();
+            }
+        }
+        em.createNativeQuery("DELETE FROM public.temp_venta_proceso WHERE nro_proceso = :nroProceso").setParameter("nroProceso", nroProceso).executeUpdate();
     }
 
     @Transactional
     public void eliminarDetalleVentaTemporal(Long idDetalle) {
+        Object[] datos = (Object[]) em.createNativeQuery("SELECT id_producto, cantidad, id_lote FROM public.temp_venta_detalle WHERE id = :id")
+                .setParameter("id", idDetalle).getSingleResult();
+
         em.createNativeQuery("DELETE FROM public.temp_venta_detalle WHERE id = :id")
-                .setParameter("id", idDetalle)
-                .executeUpdate();
+                .setParameter("id", idDetalle).executeUpdate();
+
+        em.createNativeQuery("UPDATE public.productos SET stock_reservado = stock_reservado - :cant WHERE id = :idProd")
+                .setParameter("cant", ((Number)datos[1]).intValue()).setParameter("idProd", ((Number)datos[0]).longValue()).executeUpdate();
+
+        if (datos[2] != null) {
+            em.createNativeQuery("UPDATE public.producto_lotes SET stock_reservado_lote = stock_reservado_lote - :cant WHERE id = :idLote")
+                    .setParameter("cant", ((Number)datos[1]).intValue()).setParameter("idLote", ((Number)datos[2]).longValue()).executeUpdate();
+        }
     }
 
     @Transactional

@@ -25,7 +25,6 @@ public class ProductoFacade {
 
     public List<ListaGeneralProductoDto> obtenerListadoProductos() {
         List<ListaGeneralProductoDto> resultadoProductos = productoRepository.listarProductosCompletos();
-        //El api_estado de los registros determina el estado: CREADO=activo, INACTIVO=inactivo
         return resultadoProductos;
     }
 
@@ -142,5 +141,9 @@ public class ProductoFacade {
     public void procesarTrasladoLote(Long idLote, Integer cantidad, Integer idAlmacenDestino) {
         if (cantidad == null || cantidad <= 0) throw new IllegalArgumentException("La cantidad debe ser mayor a 0");
         productoRepository.trasladarLoteDeAlmacen(idLote, cantidad, idAlmacenDestino);
+    }
+
+    public String obtenerImagenEstandar(Long idProducto) {
+        return productoRepository.obtenerImagenEstandar(idProducto);
     }
 }

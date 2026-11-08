@@ -24,6 +24,7 @@ public class ProductoDto {
     private String usuMod;
     private String fecMod;
     private String codigoBarras;
+    private String imagenBase64;
 
     private List<ProductoProveedorDto> proveedores;
     private List<ProductoEmpaqueDto> empaques;

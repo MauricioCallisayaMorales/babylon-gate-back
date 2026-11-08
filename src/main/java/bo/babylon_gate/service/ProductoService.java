@@ -7,6 +7,7 @@ import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
+import java.util.Collections;
 import java.util.List;
 
 @Path("/productos")
@@ -189,5 +190,12 @@ public class ProductoService {
         } catch (Exception e) {
             return Response.status(400).entity(e.getMessage()).build();
         }
+    }
+
+    @GET
+    @Path("/{idProducto}/imagen")
+    public Response obtenerImagen(@PathParam("idProducto") Long idProducto) {
+        String base64 = productoFacade.obtenerImagenEstandar(idProducto);
+        return Response.ok(Collections.singletonMap("imagen", base64)).build();
     }
 }

@@ -21,4 +21,5 @@ public class ProductoInventarioDto {
     private Integer vidaUtilDias;
     private Integer alertaAmarillaPorc;
     private Integer alertaRojaPorc;
+    private String imagenMiniatura;
 }

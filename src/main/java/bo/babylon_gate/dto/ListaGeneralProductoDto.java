@@ -23,4 +23,5 @@ public class ListaGeneralProductoDto {
     private String usuMod;
     private String fecMod;
     private String estado;
+    private String imagenMiniatura;
 }

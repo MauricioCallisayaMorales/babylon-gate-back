@@ -62,7 +62,7 @@ public class VentaRepository {
                     ) RETURNING id;
                 """;
 
-        String sqlActualizarStock = "UPDATE public.productos SET stock_actual = stock_actual - :cantidad WHERE id = :idProducto;";
+        String sqlActualizarStock = "UPDATE public.productos SET stock_actual = stock_actual - :cantidad, stock_reservado = stock_reservado - :cantidad WHERE id = :idProducto;";
 
         String sqlKardex = """
                     INSERT INTO public.kardex_inventario (id_producto, tipo_movimiento, cantidad_base_movida, saldo_stock_base, referencia_proceso, usu_cre) 
